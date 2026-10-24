@@ -1,0 +1,710 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>简历评估</title>
+<style>
+  :root {
+    color-scheme: light;
+    --page: #f9f9f7;
+    --surface: #fcfcfb;
+    --ink: #0b0b0b;
+    --ink-2: #52514e;
+    --muted: #898781;
+    --grid: #e1e0d9;
+    --baseline: #c3c2b7;
+    --border: rgba(11, 11, 11, .10);
+    --accent: #2a78d6;
+    --track: #cde2fb;
+    --good: #0ca30c;
+    --warning: #fab219;
+    --serious: #ec835a;
+    --critical: #d03b3b;
+    --shadow: 0 1px 2px rgba(11, 11, 11, .04), 0 8px 24px rgba(11, 11, 11, .05);
+    font-family: system-ui, -apple-system, "Segoe UI", "PingFang SC", "Hiragino Sans GB", sans-serif;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:where(:not([data-theme="light"])) {
+      color-scheme: dark;
+      --page: #0d0d0d;
+      --surface: #1a1a19;
+      --ink: #f0efec;
+      --ink-2: #c3c2b7;
+      --muted: #898781;
+      --grid: #2c2c2a;
+      --baseline: #383835;
+      --border: rgba(255, 255, 255, .10);
+      --accent: #3987e5;
+      --track: #184f95;
+      --shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 8px 24px rgba(0, 0, 0, .3);
+    }
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--page);
+    color: var(--ink);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap {
+    max-width: 880px;
+    margin: 0 auto;
+    padding: 40px 20px 72px;
+  }
+
+  header h1 {
+    font-size: 22px;
+    font-weight: 650;
+    letter-spacing: .01em;
+    margin: 0 0 6px;
+  }
+
+  .sub {
+    margin: 0 0 24px;
+    color: var(--ink-2);
+    font-size: 14px;
+    line-height: 1.6;
+  }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 24px;
+    box-shadow: var(--shadow);
+  }
+
+  .card + .card, .card + .status, .status + .card { margin-top: 16px; }
+
+  /* ---------- 上传 ---------- */
+
+  .drop {
+    display: block;
+    border: 1.5px dashed var(--baseline);
+    border-radius: 12px;
+    padding: 34px 20px;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color .15s ease, background-color .15s ease;
+  }
+
+  .drop:hover, .drop.dragover {
+    border-color: var(--accent);
+    background: color-mix(in oklab, var(--accent) 5%, transparent);
+  }
+
+  .drop-icon {
+    font-size: 22px;
+    line-height: 1;
+    color: var(--accent);
+    margin-bottom: 10px;
+  }
+
+  .drop-title { font-size: 15px; font-weight: 600; }
+
+  .drop-hint { margin-top: 6px; font-size: 12.5px; color: var(--muted); }
+
+  .picked {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-top: 16px;
+    flex-wrap: wrap;
+  }
+
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    max-width: 100%;
+    padding: 7px 12px;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: var(--page);
+    font-size: 13px;
+    color: var(--ink-2);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .chip .size { color: var(--muted); }
+
+  button {
+    font: inherit;
+    cursor: pointer;
+    border: none;
+    border-radius: 10px;
+    transition: opacity .15s ease, transform .05s ease;
+  }
+
+  button:active { transform: translateY(1px); }
+
+  .primary {
+    background: var(--accent);
+    color: #fff;
+    font-size: 14px;
+    font-weight: 600;
+    padding: 10px 20px;
+  }
+
+  .primary:disabled { opacity: .45; cursor: not-allowed; }
+
+  .ghost {
+    background: transparent;
+    color: var(--ink-2);
+    border: 1px solid var(--border);
+    font-size: 13px;
+    padding: 8px 14px;
+  }
+
+  /* ---------- 状态 ---------- */
+
+  .status {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 16px 20px;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: var(--surface);
+    color: var(--ink-2);
+    font-size: 13.5px;
+  }
+
+  .spinner {
+    width: 14px;
+    height: 14px;
+    border: 2px solid color-mix(in oklab, var(--accent) 30%, transparent);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin .8s linear infinite;
+    flex: none;
+  }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ---------- 结果 ---------- */
+
+  .hero {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    flex-wrap: wrap;
+    padding-bottom: 20px;
+    border-bottom: 1px solid var(--grid);
+  }
+
+  .hero-num {
+    font-size: 56px;
+    font-weight: 650;
+    line-height: 1;
+    letter-spacing: -.02em;
+  }
+
+  .hero-num small {
+    font-size: 16px;
+    font-weight: 500;
+    color: var(--muted);
+    margin-left: 4px;
+    letter-spacing: 0;
+  }
+
+  .hero-side { display: flex; flex-direction: column; gap: 8px; min-width: 240px; }
+
+  .grade {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    align-self: flex-start;
+    padding: 5px 13px;
+    border-radius: 999px;
+    font-size: 14px;
+    font-weight: 600;
+    background: color-mix(in oklab, var(--g) 14%, var(--surface));
+    color: var(--ink);
+  }
+
+  .grade .dot {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: var(--g);
+    flex: none;
+  }
+
+  .g-good { --g: var(--good); }
+  .g-warning { --g: var(--warning); }
+  .g-serious { --g: var(--serious); }
+  .g-critical { --g: var(--critical); }
+  .g-neutral { --g: var(--muted); }
+
+  .summary { font-size: 13px; color: var(--ink-2); line-height: 1.6; }
+
+  .meta {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 16px 20px;
+    padding-top: 18px;
+  }
+
+  .meta div { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+
+  .meta .k { font-size: 11.5px; color: var(--muted); letter-spacing: .02em; }
+
+  .meta .v {
+    font-size: 14px;
+    font-weight: 550;
+    color: var(--ink);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .section-title {
+    font-size: 14px;
+    font-weight: 650;
+    margin: 0 0 18px;
+  }
+
+  /* ---------- 分数条 ---------- */
+
+  .dims { display: flex; flex-direction: column; gap: 22px; }
+
+  .dim-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 8px;
+  }
+
+  .dim-name { font-size: 13.5px; font-weight: 600; }
+
+  .dim-weight { font-size: 11.5px; color: var(--muted); }
+
+  .meter-row {
+    display: grid;
+    grid-template-columns: 1fr 56px;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .track {
+    height: 10px;
+    border-radius: 4px;
+    background: var(--track);
+  }
+
+  .fill {
+    height: 100%;
+    width: 0;
+    background: var(--accent);
+    border-radius: 0 4px 4px 0;
+    transition: width .55s cubic-bezier(.2, .7, .2, 1);
+  }
+
+  .value {
+    text-align: right;
+    font-size: 13.5px;
+    font-weight: 600;
+    color: var(--ink-2);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .axis {
+    display: grid;
+    grid-template-columns: 1fr 56px;
+    gap: 12px;
+    margin-top: 6px;
+    font-size: 11px;
+    color: var(--muted);
+  }
+
+  .axis .ticks {
+    display: flex;
+    justify-content: space-between;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .reason {
+    margin: 10px 0 0;
+    font-size: 12.5px;
+    line-height: 1.7;
+    color: var(--ink-2);
+  }
+
+  details { margin-top: 8px; }
+
+  summary {
+    cursor: pointer;
+    font-size: 12px;
+    color: var(--muted);
+    list-style: none;
+  }
+
+  summary::-webkit-details-marker { display: none; }
+
+  summary::before {
+    content: "▸ ";
+    color: var(--muted);
+  }
+
+  details[open] summary::before { content: "▾ "; }
+
+  .evidence {
+    margin: 8px 0 0;
+    padding: 0;
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .evidence li {
+    font-size: 12px;
+    line-height: 1.65;
+    color: var(--ink-2);
+    padding-left: 12px;
+    border-left: 2px solid var(--grid);
+  }
+
+  /* ---------- 提示 ---------- */
+
+  .banner {
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+    font-size: 13px;
+    line-height: 1.6;
+    padding: 14px 16px;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--ink-2);
+  }
+
+  .banner .icon { flex: none; font-size: 14px; line-height: 1.4; }
+
+  .banner.warn { border-color: color-mix(in oklab, var(--warning) 45%, var(--border)); }
+  .banner.bad { border-color: color-mix(in oklab, var(--critical) 45%, var(--border)); }
+  .banner.bad .icon { color: var(--critical); }
+
+  .banner + .banner { margin-top: 8px; }
+
+  /* ---------- 表格视图 ---------- */
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12.5px;
+    margin-top: 10px;
+  }
+
+  th, td {
+    text-align: left;
+    padding: 9px 8px;
+    border-bottom: 1px solid var(--grid);
+    vertical-align: top;
+  }
+
+  th { font-size: 11.5px; font-weight: 600; color: var(--muted); }
+
+  td.num { text-align: right; font-variant-numeric: tabular-nums; }
+
+  .foot {
+    margin-top: 28px;
+    font-size: 12px;
+    color: var(--muted);
+    line-height: 1.7;
+  }
+
+  @media (max-width: 520px) {
+    .wrap { padding: 24px 14px 48px; }
+    .card { padding: 18px; }
+    .hero-num { font-size: 44px; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>简历评估</h1>
+    <p class="sub">上传一份简历，按技术成熟度、项目深度、教育背景、工作年限四个维度打分，等级由规则计算。</p>
+  </header>
+
+  <section class="card">
+    <label class="drop" id="drop" for="file">
+      <input type="file" id="file" accept=".pdf,.docx" hidden>
+      <div class="drop-icon">↑</div>
+      <div class="drop-title">点击选择，或把简历拖到这里</div>
+      <div class="drop-hint">支持 PDF / DOCX，最大 15MB</div>
+    </label>
+    <div class="picked" id="picked" hidden>
+      <span class="chip" id="chip"></span>
+      <button class="primary" id="submit">开始评估</button>
+    </div>
+  </section>
+
+  <div class="status" id="status" hidden>
+    <span class="spinner"></span>
+    <span id="status-text">评估中…</span>
+  </div>
+
+  <div id="result"></div>
+
+  <p class="foot">
+    等级线：≥85 优秀 · ≥70 一般 · ≥60 及格 · 其余 pass。工作年限不足岗位要求 60% 时直接 pass。<br>
+    模型只负责技术成熟度和项目深度，其余维度由代码计算；证据均已在原文中逐字校验。
+  </p>
+</div>
+
+<script>
+const DIMS = [
+  { key: "tech",      name: "技术成熟度", weight: 0.40 },
+  { key: "project",   name: "项目深度",   weight: 0.40 },
+  { key: "tenure",    name: "工作年限",   weight: 0.15 },
+  { key: "education", name: "教育背景",   weight: 0.05 },
+];
+
+const GRADE_CLASS = { "优秀": "g-good", "一般": "g-warning", "及格": "g-serious", "pass": "g-critical" };
+
+const $ = (sel) => document.querySelector(sel);
+const esc = (text) => String(text ?? "").replace(/[&<>"']/g, (ch) => (
+  { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]
+));
+
+const fileInput = $("#file");
+const drop = $("#drop");
+const picked = $("#picked");
+const chip = $("#chip");
+const submitBtn = $("#submit");
+const statusBox = $("#status");
+const statusText = $("#status-text");
+const resultBox = $("#result");
+
+let selected = null;
+let timer = null;
+
+function humanSize(bytes) {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+}
+
+function choose(file) {
+  selected = file || null;
+  if (!selected) return;
+  chip.innerHTML = `${esc(selected.name)} <span class="size">${humanSize(selected.size)}</span>`;
+  picked.hidden = false;
+}
+
+fileInput.addEventListener("change", () => choose(fileInput.files[0]));
+
+["dragenter", "dragover"].forEach((type) =>
+  drop.addEventListener(type, (event) => {
+    event.preventDefault();
+    drop.classList.add("dragover");
+  })
+);
+
+["dragleave", "drop"].forEach((type) =>
+  drop.addEventListener(type, (event) => {
+    event.preventDefault();
+    drop.classList.remove("dragover");
+  })
+);
+
+drop.addEventListener("drop", (event) => {
+  const file = event.dataTransfer.files[0];
+  if (file) choose(file);
+});
+
+function setBusy(busy) {
+  submitBtn.disabled = busy;
+  statusBox.hidden = !busy;
+  if (busy) {
+    const started = Date.now();
+    statusText.textContent = "评估中… 0s（通常 10～30 秒）";
+    timer = setInterval(() => {
+      statusText.textContent = `评估中… ${Math.round((Date.now() - started) / 1000)}s（通常 10～30 秒）`;
+    }, 1000);
+  } else {
+    clearInterval(timer);
+  }
+}
+
+async function submit() {
+  if (!selected) return;
+  resultBox.innerHTML = "";
+  setBusy(true);
+
+  const form = new FormData();
+  form.append("file", selected);
+
+  try {
+    const response = await fetch("/api/assess", { method: "POST", body: form });
+    const data = await response.json().catch(() => ({ error: `服务返回异常（HTTP ${response.status}）` }));
+    if (!response.ok) throw new Error(data.error || `HTTP ${response.status}`);
+    render(data);
+  } catch (error) {
+    renderError(error.message || "请求失败");
+  } finally {
+    setBusy(false);
+  }
+}
+
+submitBtn.addEventListener("click", submit);
+
+function renderError(message) {
+  resultBox.innerHTML = `
+    <section class="card">
+      <div class="banner bad"><span class="icon">✕</span><span>${esc(message)}</span></div>
+    </section>`;
+}
+
+function render(data) {
+  if (data.errors && data.errors.length) {
+    renderParseFailure(data);
+    return;
+  }
+  if (data.grade == null) {
+    renderError("评估未完成，请稍后重试。");
+    return;
+  }
+
+  const score = Number(data.score ?? 0);
+  const gradeClass = GRADE_CLASS[data.grade] || "g-neutral";
+  const years = data.years == null ? "—" : `${Number(data.years).toFixed(2)} 年`;
+
+  const dimRows = DIMS.map((dim) => {
+    const item = (data.dimensions || {})[dim.key];
+    if (!item) return "";
+    const value = Number(item.score);
+    const contribution = (value * dim.weight).toFixed(2);
+    const evidence = (item.evidence || []).filter(Boolean);
+    const evidenceHtml = evidence.length
+      ? `<details><summary>原文证据（${evidence.length} 条）</summary>
+           <ul class="evidence">${evidence.map((quote) => `<li>${esc(quote)}</li>`).join("")}</ul>
+         </details>`
+      : "";
+    return `
+      <div class="dim">
+        <div class="dim-head">
+          <span class="dim-name">${esc(dim.name)}</span>
+          <span class="dim-weight">权重 ${Math.round(dim.weight * 100)}% · 贡献 ${contribution} 分</span>
+        </div>
+        <div class="meter-row" title="${esc(dim.name)} ${value.toFixed(1)} × ${Math.round(dim.weight * 100)}% = ${contribution} 分">
+          <div class="track" role="img" aria-label="${esc(dim.name)} ${value.toFixed(1)} 分，满分 100">
+            <div class="fill"></div>
+          </div>
+          <span class="value">${value.toFixed(1)}</span>
+        </div>
+        ${item.reason ? `<p class="reason">${esc(item.reason)}</p>` : ""}
+        ${evidenceHtml}
+      </div>`;
+  }).join("");
+
+  const metaItems = [
+    ["姓名", data.name || "—"],
+    ["目标岗位", data.target_role || "—"],
+    ["工作年限", years],
+    ["解析引擎", data.engine || "—"],
+  ].map(([key, value]) => `<div><span class="k">${key}</span><span class="v" title="${esc(value)}">${esc(value)}</span></div>`).join("");
+
+  const warnings = [];
+  if (data.low_confidence) {
+    warnings.push(`<div class="banner warn"><span class="icon">!</span><span>存在证据不足或模型输出异常的维度，结论置信度偏低，建议人工复核。</span></div>`);
+  }
+  if (data.veto) {
+    warnings.push(`<div class="banner bad"><span class="icon">✕</span><span>触发硬门槛：${esc(data.veto)}</span></div>`);
+  }
+  (data.fallbacks || []).forEach((item) => {
+    warnings.push(`<div class="banner"><span class="icon">↻</span><span>解析降级：${esc(item.engine)} —— ${esc(item.reason)}</span></div>`);
+  });
+  (data.flags || []).forEach((flag) => {
+    warnings.push(`<div class="banner warn"><span class="icon">!</span><span>${esc(flag)}</span></div>`);
+  });
+
+  const tableRows = DIMS.map((dim) => {
+    const item = (data.dimensions || {})[dim.key];
+    if (!item) return "";
+    return `<tr>
+      <td>${esc(dim.name)}</td>
+      <td class="num">${Number(item.score).toFixed(1)}</td>
+      <td class="num">${Math.round(dim.weight * 100)}%</td>
+      <td class="num">${(Number(item.score) * dim.weight).toFixed(2)}</td>
+      <td class="num">${Number(item.confidence ?? 1).toFixed(2)}</td>
+      <td>${esc(item.reason || "")}</td>
+    </tr>`;
+  }).join("");
+
+  resultBox.innerHTML = `
+    <section class="card">
+      <div class="hero">
+        <div class="hero-num">${score.toFixed(2)}<small>分</small></div>
+        <div class="hero-side">
+          <span class="grade ${gradeClass}"><span class="dot"></span>${esc(data.grade)}</span>
+          <div class="summary">${esc(data.summary || "")}</div>
+        </div>
+      </div>
+      <div class="meta">${metaItems}</div>
+    </section>
+
+    ${warnings.length ? `<section class="card">${warnings.join("")}</section>` : ""}
+
+    <section class="card">
+      <h2 class="section-title">维度得分</h2>
+      <div class="dims">${dimRows}</div>
+      <div class="axis" aria-hidden="true">
+        <div class="ticks"><span>0</span><span>50</span><span>100</span></div>
+        <div></div>
+      </div>
+      <details>
+        <summary>表格视图</summary>
+        <table>
+          <thead>
+            <tr><th>维度</th><th class="num">得分</th><th class="num">权重</th><th class="num">贡献</th><th class="num">置信度</th><th>判定理由</th></tr>
+          </thead>
+          <tbody>${tableRows}</tbody>
+        </table>
+      </details>
+    </section>`;
+
+  // 让分数条从 0 生长到目标值
+  requestAnimationFrame(() => {
+    DIMS.forEach((dim, index) => {
+      const item = (data.dimensions || {})[dim.key];
+      if (!item) return;
+      const fill = resultBox.querySelectorAll(".fill")[index];
+      if (fill) fill.style.width = `${Math.max(0, Math.min(100, Number(item.score)))}%`;
+    });
+  });
+
+  resultBox.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function renderParseFailure(data) {
+  const reasons = (data.errors || []).map((item) => `<li>${esc(item)}</li>`).join("");
+  resultBox.innerHTML = `
+    <section class="card">
+      <h2 class="section-title">解析失败</h2>
+      <div class="banner bad">
+        <span class="icon">✕</span>
+        <span>
+          这份文件没有解析出可用于评估的文本，请确认它是文本型 PDF/DOCX（扫描件需要 OCR）。
+          <ul class="evidence" style="margin-top:8px">${reasons}</ul>
+        </span>
+      </div>
+      ${(data.fallbacks || []).map((item) => `<div class="banner"><span class="icon">↻</span><span>${esc(item.engine)} —— ${esc(item.reason)}</span></div>`).join("")}
+    </section>`;
+}
+</script>
+</body>
+</html>

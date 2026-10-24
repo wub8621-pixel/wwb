@@ -37,6 +37,20 @@ python3 -m venv .venv
 模型复用环境变量 `ANTHROPIC_BASE_URL` / `ANTHROPIC_MODEL` / `ANTHROPIC_AUTH_TOKEN`
 （当前指向 DeepSeek 的 Anthropic 兼容端点）。
 
+## 本地界面
+
+```bash
+.venv/bin/python -m web.server            # 默认 http://<本机局域网IP>:7880
+.venv/bin/python -m web.server --port 8000
+```
+
+浏览器打开后选择或拖入 PDF/DOCX，页面直接展示等级、总分、四维分数条、判定理由与原文证据。
+只依赖标准库，不需要额外安装 Web 框架。
+
+- 上传文件落临时目录，请求结束即删；**不落库、不保留简历**
+- 模型调用串行执行，避免并发撞限流
+- 只监听本机/局域网，不做公网暴露
+
 ## 评测
 
 正确率必须用标注集衡量，否则无法判断任何改动是进步还是退步。
