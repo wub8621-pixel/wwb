@@ -37,9 +37,10 @@ def setup_logging(cfg) -> tuple[logging.Logger, Path]:
     return logger, log_dir
 
 
-def write_report(log_dir: Path, payload: dict) -> Path:
+def write_report(log_dir: Path, payload: dict, prefix: str = "run") -> Path:
+    """每次运行一份 JSON 报告，落在 logs/reports/ 下。"""
     reports = log_dir / "reports"
     reports.mkdir(parents=True, exist_ok=True)
-    path = reports / f"run-{datetime.now():%Y%m%d-%H%M%S}.json"
+    path = reports / f"{prefix}-{datetime.now():%Y%m%d-%H%M%S}.json"
     path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
     return path

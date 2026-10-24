@@ -70,6 +70,30 @@ START → ingest → split → (needs_llm?) ─┬─ 是 → repair（LLM 兜�
 - `logs/ebook.log`：按天切分，保留 `runtime.log_retention_days` 天；记录编码、章节数、兜底原因、产物路径
 - `logs/reports/run-YYYYmmdd-HHMMSS.json`：每次运行的逐本结果（供后续评测使用）
 
+## 评测
+
+```bash
+# 结构与内容质检（无需额外依赖）
+.venv/bin/python -m eval.check_epub --epub-dir output --source-dir /path/to/txt目录
+
+# 叠加 W3C EPUBCheck（需要 java 与 epubcheck.jar）
+.venv/bin/python -m eval.check_epub --epub-dir output --source-dir /path/to/目录 \
+  --java /path/to/java --epubcheck-jar /path/to/epubcheck.jar
+```
+
+| 指标 | 含义 | 期望 |
+|---|---|---|
+| 章节数 | 产物中的正文文档数 | 与预期一致 |
+| 覆盖率 | 原文字符在产物中的保留比例（忽略空白，不校验顺序） | 100% |
+| 缺字 | 原文有、产物没有的字符数 | 0 |
+| 乱码 | 产物中的私用区/替换符字符数 | 0 |
+| EPUBCheck | W3C 结构合规 | 0 errors / 0 warnings |
+
+结果写入 `logs/reports/eval-YYYYmmdd-HHMMSS.json`，同时记入 `logs/ebook.log`。
+
+> macOS 没装 Java 时，可以直接借用 IDE 自带的 JRE：
+> `/Applications/PyCharm.app/Contents/jbr/Contents/Home/bin/java`。
+
 ## 测试
 
 ```bash
@@ -83,3 +107,4 @@ PYTHONPATH=. .venv/bin/python -m unittest discover -s tests -t .
 - 书前的目录页会被当成正文，暂不剔除
 - 中文数字只解析常见写法（一～万），生僻写法不识别
 - 封面依赖系统中文字体，找不到时会退回默认字体（中文可能显示为方块）
+- 评测里的覆盖率是字符级召回，不校验顺序与段落结构；版式合规交给 EPUBCheck
