@@ -105,6 +105,11 @@ def _resolve(raw: str, base: Path) -> Path:
     return path if path.is_absolute() else (base / path)
 
 
+def labeled_files(rows: list[LabelRow], base: Path) -> list[Path]:
+    """只跑有标注的简历——没标 grade 的跑了也算不出分数，纯浪费调用。"""
+    return sorted({_resolve(row.file, base) for row in rows if row.file and row.grade})
+
+
 def _median_dims(runs: list[dict]) -> dict[str, DimResult]:
     dims: dict[str, DimResult] = {}
     for key in DIMENSIONS:
@@ -266,9 +271,13 @@ def main(argv: list[str] | None = None) -> int:
 
     rows = load_labels(labels_path)
     base = labels_path.parent
-    files = sorted({_resolve(row.file, base) for row in rows if row.file})
+    files = labeled_files(rows, base)
 
     results_path = Path(args.results)
+    if not files:
+        print("标注文件里还没有任何 grade，先填写再跑。", file=sys.stderr)
+        return 2
+
     if args.no_run:
         if not results_path.is_file():
             print(f"找不到缓存结果 {results_path}", file=sys.stderr)

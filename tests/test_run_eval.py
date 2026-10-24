@@ -5,7 +5,13 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from eval.run_eval import LabelRow, build_report, init_template, load_labels
+from eval.run_eval import (
+    LabelRow,
+    build_report,
+    init_template,
+    labeled_files,
+    load_labels,
+)
 
 
 def write_csv(path: Path, rows: list[dict]) -> None:
@@ -69,6 +75,24 @@ class LoadLabelsTest(unittest.TestCase):
             write_csv(path, [{"file": "a.pdf", "grade": "很好"}])
             with self.assertRaises(ValueError):
                 load_labels(path)
+
+
+class LabeledFilesTest(unittest.TestCase):
+    def test_only_labeled_rows_are_run(self):
+        base = Path("/tmp/eval_case")
+        rows = [
+            LabelRow("a.pdf", grade="优秀"),
+            LabelRow("b.pdf", grade=""),
+            LabelRow("c.pdf", grade="一般"),
+        ]
+        self.assertEqual(
+            labeled_files(rows, base), [base / "a.pdf", base / "c.pdf"]
+        )
+
+    def test_duplicate_rows_run_once(self):
+        base = Path("/tmp/eval_case")
+        rows = [LabelRow("a.pdf", "me", grade="优秀"), LabelRow("a.pdf", "peer", grade="一般")]
+        self.assertEqual(labeled_files(rows, base), [base / "a.pdf"])
 
 
 class BuildReportTest(unittest.TestCase):
