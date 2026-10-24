@@ -1,9 +1,9 @@
 ---
-name: ai-project-bootstrap
+name: sopskill
 description: 启动或更新一个 AI/Agent 项目时使用。先询问项目名称并据此判断是新建目录还是在既有项目上迭代，再让用户选择框架（LangGraph 等），分批询问模型、图与业务参数并全部落到 config/settings.yaml（代码只引用配置、禁止硬编码），最后交付「节点—职责—可调参数」对照表和调参指南。适用于「新建一个 X 项目」「给这个项目加上 RAG / 工具调用」「把参数抽到配置里」「我想调 top_k / 融合策略 / 工具循环次数」等场景。
 ---
 
-# AI 项目启动器
+# SOP 项目启动器
 
 ## 这个 skill 解决什么
 
