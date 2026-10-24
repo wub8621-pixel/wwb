@@ -602,7 +602,7 @@ function render(data) {
         </div>
         <div class="meter-row" title="${esc(dim.name)} ${value.toFixed(1)} × ${Math.round(dim.weight * 100)}% = ${contribution} 分">
           <div class="track" role="img" aria-label="${esc(dim.name)} ${value.toFixed(1)} 分，满分 100">
-            <div class="fill"></div>
+            <div class="fill" data-key="${dim.key}"></div>
           </div>
           <span class="value">${value.toFixed(1)}</span>
         </div>
@@ -679,10 +679,10 @@ function render(data) {
 
   // 让分数条从 0 生长到目标值
   requestAnimationFrame(() => {
-    DIMS.forEach((dim, index) => {
+    DIMS.forEach((dim) => {
       const item = (data.dimensions || {})[dim.key];
       if (!item) return;
-      const fill = resultBox.querySelectorAll(".fill")[index];
+      const fill = resultBox.querySelector(`.fill[data-key="${dim.key}"]`);
       if (fill) fill.style.width = `${Math.max(0, Math.min(100, Number(item.score)))}%`;
     });
   });
