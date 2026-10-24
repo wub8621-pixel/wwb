@@ -166,3 +166,13 @@ config/
 |---|---|
 | `references/config-recipes.md` | LangGraph 项目的完整 `settings.yaml` 分组示例、`loader.py` 参考实现、深合并与校验写法 |
 | `references/node-report.md` | 交付报告模板 + 一个 RAG 助手项目的填写示例 |
+
+## 仓库通用规则（来自 AGENTS.md）
+
+在 `cloud` 工作区内执行本 skill 时，以下规则与上面的流程同时生效，冲突时以本节为准：
+
+1. 每次改动完成后，都必须创建一个对应的 Git commit，以便后续追踪和回滚。
+2. 每次改动后，都必须编写或更新相关测试，并在交付给用户前，确保所有测试和验证全部通过。
+3. 每次提交（commit）后，都必须记录该提交的版本号（短 hash 与完整 hash）及提交信息。
+4. 推送（push）前，必须先展示本次将要推送的提交清单（`git log origin/<分支名>..HEAD --oneline`），
+   标明目标 remote 和分支，经确认后再执行推送；推送完成后回报推送结果。
