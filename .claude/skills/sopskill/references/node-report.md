@@ -46,6 +46,12 @@ START → parse → retrieve → (有文档?) → generate → END
 | 回答太慢 | `top_k` ↓、`rerank.keep` ↓ | `max_tokens` ↓、`retries` ↓ |
 | 模型该调工具时不调 | `tools.enabled` 检查、`allowed` 白名单 | 提示词里补充工具使用规则 |
 | 模型反复调工具停不下来 | `tools.max_rounds` ↓ | `tools.max_calls_per_turn` ↓ |
+| 模型调了不该调的工具 | 检查 `tools.allowed` 白名单 | `unknown_tool_policy: reject`、`log_denials: true` |
+| 多轮对话记不住前文 | `memory.short_term.max_turns` ↑ | `overflow: summarize` |
+| 上下文太长、记忆串味 | `max_turns` ↓ | 只把摘要放进上下文 |
+| 长期记忆越存越多 | `memory.long_term.retention_days` ↓ | 只存 `summary` / `facts` |
+| 向量召回不准 | `vector_store.search.ef` ↑、`index.M` ↑ | 换 `IVF_FLAT` 做对比 |
+| 检索太慢 | `search.ef` ↓、`nprobe` ↓ | `search.top_k` ↓ |
 | 结果不稳定、每次不一样 | 降低随机性（若模型支持）、`retries` ↑ | 固定评测集对比 |
 | 图跑到一半报 recursion 错误 | `graph.recursion_limit` ↑ | 检查条件边是否形成死循环 |
 
@@ -78,6 +84,10 @@ START → load → embed → retrieve → tools ─┬─(不需要工具)→ an
 | `rag.top_k` | 8 | 召回更全、更慢 | 更准、可能漏 | `retrieve.py:31` |
 | `tools.max_rounds` | 6 | 支持更复杂任务 | 更快收敛 | `agent.py:77` |
 | `tools.max_calls_per_turn` | 3 | 一轮可并行更多工具 | 单轮更保守 | `agent.py:81` |
+| `memory.short_term.max_turns` | 10 | 上下文更连贯、成本更高 | 更省 token、可能忘前文 | `memory.py:24` |
+| `memory.long_term.retention_days` | 90 | 记忆留得更久 | 更早清理，可能丢历史 | `memory.py:57` |
+| `vector_store.index.type` | HNSW | — | — | `vector.py:31`：改 IVF 需重建索引 |
+| `vector_store.search.ef` | 64 | 召回更准、更慢 | 更快、可能漏召回 | `vector.py:66` |
 
 ---
 

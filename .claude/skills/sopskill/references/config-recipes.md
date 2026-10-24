@@ -62,9 +62,39 @@ rag:
 
 tools:
   enabled: true                       # 关闭后图里不再进入工具节点
-  allowed: [search_docs, calculator]  # 白名单，未列出的工具模型无法调用
+  allowed: [search_docs, calculator]  # 白名单；为空 = 全部拒绝
+  unknown_tool_policy: reject         # reject（默认）| warn（放行但记录）| ignore
+  log_denials: true                   # 记录被拒绝的调用，便于排查模型乱调工具
   max_calls_per_turn: 3               # 单轮最多并行调用几次工具
   max_rounds: 6                       # 工具循环总上限，防止模型来回打转
+
+memory:
+  short_term:
+    max_turns: 10                     # 上下文保留最近多少轮；调大更连贯，但更贵
+    overflow: summarize               # summarize（压缩成摘要）| drop（直接丢弃）
+  long_term:
+    enabled: true
+    backend: postgresql               # postgresql | none
+    dsn_env: MEMORY_PG_DSN            # 连接串只存环境变量名
+    table: agent_memory
+    store: [summary, facts]           # 存什么：messages / summary / facts（可多选）
+    retention_days: 90                # 0 = 永久保留
+    per_user: true                    # 是否按用户隔离
+
+vector_store:
+  type: milvus                        # milvus | pgvector | ...
+  uri_env: MILVUS_URI
+  collection: agent_docs
+  metric: COSINE                      # COSINE | IP | L2；必须与索引一致
+  index:
+    type: HNSW                        # HNSW | IVF_FLAT | IVF_SQ8 | FLAT
+    M: 16                             # HNSW：每个节点的邻接数，调大召回更好、内存更高
+    ef_construction: 200              # HNSW：建索引时的候选宽度，越大越准、建得越慢
+    nlist: 1024                       # IVF：聚类簇数，通常取数据量的平方根量级
+  search:
+    top_k: 8                          # 最终返回条数
+    ef: 64                            # HNSW：查询候选宽度，需 >= top_k，调大更准更慢
+    nprobe: 16                        # IVF：查询时探测的簇数，调大更准更慢
 
 web:
   host: 0.0.0.0
@@ -121,6 +151,10 @@ CHECKS: dict[str, tuple[type, float | None, float | None]] = {
     "rag.chunk_size": (int, 50, 8000),
     "rag.top_k": (int, 1, 100),
     "tools.max_rounds": (int, 0, 50),
+    "memory.short_term.max_turns": (int, 1, 500),
+    "memory.long_term.retention_days": (int, 0, 3650),
+    "vector_store.search.top_k": (int, 1, 200),
+    "vector_store.search.ef": (int, 1, 4096),
 }
 
 
@@ -184,6 +218,17 @@ class Config:
         if strategy not in ("rrf", "weighted"):
             raise ConfigError(f"rag.fusion.strategy 只能是 rrf 或 weighted，当前 {strategy!r}")
 
+        index_type = self.get("vector_store.index.type")
+        if index_type not in ("HNSW", "IVF_FLAT", "IVF_SQ8", "FLAT"):
+            raise ConfigError(f"vector_store.index.type 不支持 {index_type!r}")
+        # HNSW 的查询宽度必须覆盖返回条数，否则 ef 会悄悄限制住召回
+        if index_type == "HNSW" and self.get("vector_store.search.ef") < self.get("vector_store.search.top_k"):
+            raise ConfigError("vector_store.search.ef 必须 >= vector_store.search.top_k")
+
+        policy = self.get("tools.unknown_tool_policy")
+        if policy not in ("reject", "warn", "ignore"):
+            raise ConfigError(f"tools.unknown_tool_policy 只能是 reject / warn / ignore，当前 {policy!r}")
+
 
 def load_config(path: Path | None = None) -> Config:
     """读默认配置，若存在本地覆盖则深合并。进程启动时调用一次。"""
@@ -226,7 +271,63 @@ top_k = os.getenv("TOP_K")    # ✗ 环境变量散落，配置失去唯一性
 client = Anthropic(api_key="sk-...")  # ✗ 密钥硬编码
 ```
 
-## 5. 测试模板
+## 5. 工具白名单：必须在代码里校验
+
+提示词里写「只能使用 search_docs / calculator」不构成约束，模型可以无视。
+**执行前必须查白名单，默认拒绝**：
+
+```python
+import logging
+
+logger = logging.getLogger(__name__)
+
+
+class ToolDenied(RuntimeError):
+    """工具不在白名单内，拒绝执行。"""
+
+
+def dispatch_tool(name: str, args: dict, cfg) -> str:
+    """所有工具调用的唯一入口：先校验，再执行。"""
+    allowed = set(cfg.get("tools.allowed"))
+    enabled = cfg.get("tools.enabled")
+    if not enabled or name not in allowed:
+        if cfg.get("tools.log_denials"):
+            logger.warning("工具被拒绝：%s args=%s", name, args)
+        policy = cfg.get("tools.unknown_tool_policy")
+        if policy == "ignore":
+            return ""
+        if policy == "warn":          # 放行但留痕，仅用于本地调试
+            logger.warning("白名单外放行：%s", name)
+        else:
+            raise ToolDenied(f"工具 {name} 不在白名单内")
+    return REGISTRY[name](**args)
+```
+
+白名单的测试必须覆盖两条路径：
+
+```python
+def test_allowed_tool_runs():
+    assert dispatch_tool("calculator", {"expr": "1+1"}, cfg) == "2"
+
+
+def test_unknown_tool_is_denied():
+    with pytest.raises(ToolDenied):
+        dispatch_tool("shell_exec", {"cmd": "rm -rf /"}, cfg)
+```
+
+要点：白名单为空 = 全部拒绝；拒绝要留日志；别把校验散落在每个工具内部，
+否则新增一个工具就可能漏一层。
+
+## 6. 记忆与向量库：三个容易踩的坑
+
+1. **短期轮数是轮数，不是 token**。`memory.short_term.max_turns: 10` 在长消息下仍可能超上下文，
+   需要再按 token 预算截断一次。
+2. **长期记忆的隐私与可追溯**。只存摘要/事实时保留原始消息 ID；`retention_days` 要真的执行
+   （定时清理任务），写在配置里不等于会删除。
+3. **索引参数要跟数据规模匹配**。HNSW 的 `M` / `ef` 适合中小规模；到百万级再对比 IVF 的
+   `nlist` / `nprobe`。`metric` 建库后不能改，必须和 embedding 的训练方式一致。
+
+## 7. 测试模板
 
 ```python
 import os
@@ -263,7 +364,7 @@ class ConfigTest(unittest.TestCase):
                 cfg.env("model.api_key_env")
 ```
 
-## 6. 什么时候该加配置项
+## 8. 什么时候该加配置项
 
 | 该进配置 | 不该进配置 |
 |---|---|
