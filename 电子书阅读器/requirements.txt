@@ -1,0 +1,5 @@
+langgraph==1.2.17
+ebooklib==0.20
+Pillow==12.3.0
+PyYAML==6.0.3
+anthropic==2.2.0

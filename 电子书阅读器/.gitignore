@@ -1,0 +1,7 @@
+.venv/
+__pycache__/
+*.pyc
+config/settings.local.yaml
+logs/*.log*
+logs/reports/
+output/

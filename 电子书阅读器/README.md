@@ -1,0 +1,85 @@
+# 电子书阅读器
+
+把指定目录里的 txt 转成 EPUB：读取 → 切章 → 质量判定 →（必要时）LLM 兜底 → 生成封面与目录 → 打包。
+
+**一个 txt 出一本书，产物落在 `output/`，日志落在 `logs/`。**
+
+## 快速开始
+
+```bash
+cd 电子书阅读器
+.venv/bin/pip install -r requirements.txt          # 首次
+
+.venv/bin/python -m ebook.cli /path/to/txt目录
+.venv/bin/python -m ebook.cli /path/to/目录 --recursive   # 含子目录
+.venv/bin/python -m ebook.cli /path/to/目录 --no-llm      # 只用正则，不调模型
+.venv/bin/python -m ebook.cli /path/to/目录 --json        # 结果以 JSON 输出
+```
+
+不传目录时读取 `config/settings.yaml` 的 `runtime.default_input_dir`；两者都空则报错退出（返回码 2）。
+
+## 流程图
+
+```
+START → ingest → split → (needs_llm?) ─┬─ 是 → repair（LLM 兜底）→ metadata → build → END
+                                        └─ 否 ─────────────────────→ metadata → build → END
+```
+
+## 节点表
+
+| 节点 | 职责 | 输入 | 输出 | 关键配置 | 代码位置 |
+|---|---|---|---|---|---|
+| ingest | 读文件、探测编码、规范化换行 | 文件路径 | `text`、`encoding` | `ingest.encodings`、`ingest.min_chars` | `ebook/graph.py:37` |
+| split | 正则切章并计算质量指标 | `text` | `chapters`、`quality` | `chapters.*`、`quality.*` | `ebook/graph.py:49` |
+| route | 条件边：是否需要 LLM 兜底 | `quality` | 下一节点名 | `llm_fallback.enabled` | `ebook/graph.py:72` |
+| repair | 让模型重新识别章节标题行 | `text`、失败原因 | `chapters` | `llm_fallback.max_input_chars`、`max_chapters` | `ebook/graph.py:77` |
+| metadata | 书名/作者/简介，缺字段时问模型 | `text`、文件名 | `metadata` | `metadata.*` | `ebook/graph.py:106` |
+| build | 生成封面、写 EPUB | `chapters`、`metadata` | `output_path` | `epub.*` | `ebook/graph.py:125` |
+
+配套模块：切章规则 `ebook/chapters.py:57`、质量判定 `ebook/chapters.py:107`、
+模型调用 `ebook/llm.py:97`、封面 `ebook/cover.py:40`、EPUB 打包 `ebook/epub.py:27`、
+日志与报告 `ebook/logging_setup.py`。
+
+## 可调参数
+
+| 配置键 | 当前值 | 调大 | 调小 | 代码位置 |
+|---|---|---|---|---|
+| `chapters.patterns` | 第X章 / 序章 / Chapter N | 支持更多排版 | 误判减少 | `ebook/chapters.py:57` |
+| `chapters.max_title_chars` | 40 | 长标题也能识别 | 正文误判为标题 | `ebook/chapters.py:47` |
+| `chapters.min_chapters` | 3 | 更容易触发兜底 | 更难触发 | `ebook/chapters.py:107` |
+| `chapters.long_text_threshold` | 5000 | 短文本不要求章节 | 短文本也要求 | `ebook/chapters.py:107` |
+| `quality.garbled_ratio` | 0.05 | 更宽容 | 更容易调模型 | `ebook/chapters.py:107` |
+| `quality.blank_ratio` | 0.40 | 更宽容 | 更容易调模型 | `ebook/chapters.py:107` |
+| `llm_fallback.max_input_chars` | 30000 | 一次修更多正文，更慢更贵 | 超出部分不修 | `ebook/llm.py:97` |
+| `epub.cover.width/height` | 800×1200 | 封面更清晰、体积更大 | 体积更小 | `ebook/cover.py:40` |
+| `runtime.log_level` | DEBUG | 记录正文片段，便于排错 | 更安静 | `ebook/logging_setup.py:16` |
+| `runtime.log_retention_days` | 7 | 日志留更久 | 更早清理 | `ebook/logging_setup.py:30` |
+
+**调参速查**
+
+| 你的感受 | 先动哪个 |
+|---|---|
+| 章节切得太碎 | `chapters.max_title_chars` ↓ |
+| 该有的章节没切出来 | `chapters.patterns` 补规则；仍不行看质量报告是否触发兜底 |
+| 模型调用太频繁 | `chapters.min_chapters` ↑、`quality.*` 放宽 |
+| 书名/作者不对 | `metadata.author_patterns`；书名默认取文件名 |
+| 封面中文变方块 | `epub.cover.font_path` 指定系统里的中文字体 |
+
+## 日志与报告
+
+- `logs/ebook.log`：按天切分，保留 `runtime.log_retention_days` 天；记录编码、章节数、兜底原因、产物路径
+- `logs/reports/run-YYYYmmdd-HHMMSS.json`：每次运行的逐本结果（供后续评测使用）
+
+## 测试
+
+```bash
+PYTHONPATH=. .venv/bin/python -m unittest discover -s tests -t .
+```
+
+## 已知限制
+
+- 只处理纯文本；扫描版 PDF/图片不做 OCR
+- 正文超过 `llm_fallback.max_input_chars` 时只修前一段，剩余内容并入最后一章
+- 书前的目录页会被当成正文，暂不剔除
+- 中文数字只解析常见写法（一～万），生僻写法不识别
+- 封面依赖系统中文字体，找不到时会退回默认字体（中文可能显示为方块）

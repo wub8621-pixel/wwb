@@ -1,0 +1,64 @@
+# 电子书阅读器 · 唯一配置来源
+# 代码只经 config/loader.py 读取本文件，严禁在业务代码里写死参数。
+# 修改后跑：.venv/bin/python -m unittest discover -s tests
+
+model:
+  base_url: https://api.deepseek.com/anthropic   # Anthropic 兼容端点
+  name: deepseek-chat                            # 兜底时调用的模型
+  api_key_env: ANTHROPIC_AUTH_TOKEN              # 只存变量名，密钥不落盘
+  max_tokens: 2048                               # 单次回复上限；调大更完整，但更慢
+  timeout_s: 60                                  # 单次调用超时
+  retries: 2                                     # 失败重试次数
+
+runtime:
+  log_level: DEBUG                               # DEBUG 会记录正文片段，注意隐私
+  log_dir: logs                                  # 日志目录（相对项目根目录）
+  log_retention_days: 7                          # 日志按天切分，保留 7 天
+  output_dir: output                             # EPUB 输出目录
+  default_input_dir: ""                          # 命令行不传目录时使用；留空则必须传参
+
+graph:
+  recursion_limit: 25                            # LangGraph 单本书最大步数
+
+ingest:
+  extensions: [".txt"]                           # 只扫描这些扩展名
+  recursive: false                               # 是否递归子目录
+  encodings: ["utf-8-sig", "utf-8", "gb18030", "gbk", "big5"]
+  min_chars: 200                                 # 少于这么多字符视为空文件
+
+chapters:
+  patterns:                                      # 章节标题正则，按顺序尝试
+    - '^\s*第\s*[0-9一二三四五六七八九十百千万零两]+\s*[章卷回节篇][^\n]*$'
+    - '^\s*(序章|楔子|前言|序言|后记|尾声|终章|番外|外传)[^\n]*$'
+    - '^\s*(Chapter|CHAPTER)\s+[0-9IVXLCDM]+[^\n]*$'
+  min_chapters: 3                                # 长文本低于此章节数触发兜底
+  long_text_threshold: 5000                      # 超过这么多字符才要求章节数
+  max_title_chars: 40                            # 超过这个长度的行不算标题，避免正文误判
+  fallback_title: 正文                           # 找不到标题时使用
+
+quality:
+  garbled_ratio: 0.05                            # 乱码字符占比超过即兜底
+  blank_ratio: 0.40                              # 空白行占比超过即兜底
+  check_order: true                              # 章节序号倒序也算异常
+
+llm_fallback:
+  enabled: true
+  max_input_chars: 30000                         # 送给模型的正文上限，超出只修前缀
+  max_chapters: 80                               # 接受的最大章节数
+
+metadata:
+  author_patterns:
+    - '作\s*者\s*[:：]\s*(\S.*)'
+    - '著\s*者\s*[:：]\s*(\S.*)'
+  title_from_filename: true                      # 优先用文件名做书名
+  description_max_chars: 200                     # 简介截断长度
+
+epub:
+  language: zh-CN
+  cover:
+    enabled: true
+    width: 800                                   # 封面宽（像素）
+    height: 1200                                 # 封面高（像素）
+    background: "#1f3a5f"
+    text_color: "#ffffff"
+    font_path: ""                                # 留空自动查找系统中文字体
