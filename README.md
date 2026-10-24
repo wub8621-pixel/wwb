@@ -25,7 +25,14 @@ python3 -m venv .venv
 
 .venv/bin/python -m resume_agent.main "简历.pdf"
 .venv/bin/python -m resume_agent.main "简历.pdf" --json
+
+# 直接给目录：自动找 PDF/DOCX，多份时末尾输出按分数排序的汇总表
+.venv/bin/python -m resume_agent.main "/path/to/简历目录"
+.venv/bin/python -m resume_agent.main "/path/to/简历目录" --recursive   # 含子目录
 ```
+
+目录默认只扫一层（`AI面试资料/` 这类参考目录不会被误收），加 `--recursive` 才递归。
+多份时 `--json` 输出数组，单份仍输出对象。
 
 模型复用环境变量 `ANTHROPIC_BASE_URL` / `ANTHROPIC_MODEL` / `ANTHROPIC_AUTH_TOKEN`
 （当前指向 DeepSeek 的 Anthropic 兼容端点）。
@@ -67,7 +74,8 @@ python3 -m venv .venv
 
 - **主解析引擎当前空转**：中文 PDF 下 `unstructured` 返回 0 元素，DOCX 缺 NLTK 数据，
   实际总是走 native 分支。
-- **分数有 ±1 波动**：所用 SDK 已不支持 `temperature`，可用 `--repeat 3` 取中位数缓解。
+- **分数有 3～4 分波动**：所用 SDK 已不支持 `temperature`，同一份简历重复跑，
+  总分实测在 70.8～74.8、88.0～89.2 之间浮动（等级未变）。用 `--repeat 3` 取中位数缓解。
 - **院校层次表未配置**：教育背景目前只按学历计分，配置后才会加分。
 - **标注样本太少**：目前只有 2 份标注（1 优秀、1 一般），准确率数字只能证明链路通，
   说明不了泛化能力；且只标了等级、没标维度分，MAE 暂时算不出来。
