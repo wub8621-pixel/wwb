@@ -1,0 +1,76 @@
+# 简历评估 Agent
+
+用 LangGraph 编排的简历筛选工作流：解析 → 结构化 → 四维评估 → 规则聚合 → 等级。
+
+**设计原则：能算的不问模型。** 工作年限由代码从日期区间计算，学历由规则查表；
+模型只负责「技术成熟度」和「项目深度」两个需要语义理解的维度，最终等级仍由规则算出。
+
+## 评分
+
+| 维度 | 权重 | 来源 |
+|---|---|---|
+| 技术成熟度 | 40% | 模型判定 + 原文证据 |
+| 项目深度 | 40% | 模型判定 + 原文证据 |
+| 工作年限 | 15% | 代码计算（重叠月份只计一次，实习按 0.5） |
+| 教育背景 | 5% | 规则查表（院校层次未配置时只按学历计分） |
+
+硬门槛：工作年限 < 0.6 × 岗位要求时直接 `pass`，不看加权分。
+等级：`≥85 优秀`、`≥70 一般`、`≥60 及格`、其余 `pass`。
+
+## 快速开始
+
+```bash
+python3 -m venv .venv
+.venv/bin/pip install -r requirements.txt
+
+.venv/bin/python -m resume_agent.main "简历.pdf"
+.venv/bin/python -m resume_agent.main "简历.pdf" --json
+```
+
+模型复用环境变量 `ANTHROPIC_BASE_URL` / `ANTHROPIC_MODEL` / `ANTHROPIC_AUTH_TOKEN`
+（当前指向 DeepSeek 的 Anthropic 兼容端点）。
+
+## 评测
+
+正确率必须用标注集衡量，否则无法判断任何改动是进步还是退步。
+
+```bash
+# 1. 生成标注模板（每份简历一行）
+.venv/bin/python -m eval.run_eval --init "/path/to/简历目录"
+
+# 2. 填写 eval/labels.csv
+#    tech/project/education/tenure 填 0-100；grade 只能是 优秀/一般/及格/pass
+#    同一份简历可由两位标注者各填一行，用于计算人的一致性上限
+
+# 3. 跑分
+.venv/bin/python -m eval.run_eval                  # 单次
+.venv/bin/python -m eval.run_eval --repeat 3       # 每份跑 3 次取中位数
+.venv/bin/python -m eval.run_eval --no-run         # 复用缓存结果
+```
+
+报告包含：精确一致率、相邻一致率、**二次加权 kappa**、混淆矩阵、各维度 MAE、
+标注者之间的一致性，以及低置信度清单。
+
+等级是有序的，所以主指标用二次加权 kappa：差一档的惩罚远小于差三档。
+
+> `eval/labels.csv` 和 `eval/results.json` 含个人信息，已在 `.gitignore` 中排除。
+
+## 解析层
+
+主备双引擎：`unstructured` 优先，结果不达标（空结果、乱码、中文占比过低、
+空元素过多、页眉页脚重复）时自动降级到 `pymupdf` + `python-docx`，
+每次降级的原因都记录在结果里。
+
+## 已知限制
+
+- **主解析引擎当前空转**：中文 PDF 下 `unstructured` 返回 0 元素，DOCX 缺 NLTK 数据，
+  实际总是走 native 分支。
+- **分数有 ±1 波动**：所用 SDK 已不支持 `temperature`，可用 `--repeat 3` 取中位数缓解。
+- **院校层次表未配置**：教育背景目前只按学历计分，配置后才会加分。
+- **样本单一**：现有简历均为同一人，无法代表真实候选人分布。
+
+## 测试
+
+```bash
+PYTHONPATH=. .venv/bin/python -m unittest discover -s tests
+```

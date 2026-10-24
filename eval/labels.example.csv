@@ -1,0 +1,4 @@
+file,annotator,tech,project,education,tenure,grade,notes
+/absolute/path/to/resume.pdf,me,85,88,75,100,优秀,主观分按 0-100 填；等级只能是 优秀/一般/及格/pass
+/absolute/path/to/resume.pdf,peer,80,82,75,100,一般,同一份简历两位标注者各填一行，用来算人的一致性上限
+/absolute/path/to/other.docx,me,60,55,75,100,及格,
