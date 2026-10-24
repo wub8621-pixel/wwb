@@ -6,6 +6,8 @@ import json
 import logging
 import re
 
+from config.loader import ConfigError
+
 from .chapters import Chapter
 
 
@@ -60,6 +62,20 @@ def load_json(raw: str):
             return json.loads(match.group(0))
         except json.JSONDecodeError as exc:
             raise LLMError(f"模型返回的 JSON 无法解析：{exc}") from exc
+
+
+def make_llm(cfg, logger: logging.Logger):
+    """按配置创建模型客户端；关闭、缺密钥或 SDK 不可用时返回 None。"""
+    if not cfg.get("llm_fallback.enabled"):
+        return None
+    try:
+        return LLMClient(cfg, logger)
+    except ConfigError as exc:
+        logger.warning("模型未配置，跳过 LLM 兜底：%s", exc)
+        return None
+    except ImportError as exc:
+        logger.warning("anthropic SDK 不可用，跳过 LLM 兜底：%s", exc)
+        return None
 
 
 class LLMClient:

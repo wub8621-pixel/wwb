@@ -18,6 +18,34 @@ cd 电子书阅读器
 
 不传目录时读取 `config/settings.yaml` 的 `runtime.default_input_dir`；两者都空则报错退出（返回码 2）。
 
+## HTTP 服务
+
+```bash
+.venv/bin/python -m ebook.api          # 监听配置里的 server.host:server.port（默认 127.0.0.1:7881）
+```
+
+| 方法 | 路由 | 说明 |
+|---|---|---|
+| GET | `/health` | 存活检查；返回模型名、LLM 是否可用、各路由 |
+| POST | `/api/convert` | 上传一个 txt，同步返回 EPUB 文件流 |
+| POST | `/api/convert/batch` | 上传多个 txt，返回逐本结果与下载链接 |
+| GET | `/api/runs/{run_id}` | 查询某次运行的结果（`output/runs/<run_id>/run.json`） |
+| GET | `/api/download/{run_id}/{filename}` | 下载已生成的书 |
+
+`/api/convert` 的响应头带 `X-Run-Id`、`X-Chapters`、`X-Repaired`。表单字段 `use_llm=false`
+可对单次请求禁用模型兜底。上传上限、批量上限、路由前缀都在 `server.*` 配置里。
+
+```bash
+curl http://127.0.0.1:7881/health
+
+curl -o 书名.epub -F "file=@/path/to/书名.txt" http://127.0.0.1:7881/api/convert
+
+curl -F "files=@一本.txt" -F "files=@另一本.txt" \
+  http://127.0.0.1:7881/api/convert/batch
+```
+
+每次请求的上传与产物落在 `output/runs/<run_id>/`，结果同时写入 `logs/reports/api-*.json`。
+
 ## 流程图
 
 ```
@@ -68,7 +96,8 @@ START → ingest → split → (needs_llm?) ─┬─ 是 → repair（LLM 兜�
 ## 日志与报告
 
 - `logs/ebook.log`：按天切分，保留 `runtime.log_retention_days` 天；记录编码、章节数、兜底原因、产物路径
-- `logs/reports/run-YYYYmmdd-HHMMSS.json`：每次运行的逐本结果（供后续评测使用）
+- `logs/reports/run-YYYYmmdd-HHMMSS.json`：命令行每次运行的逐本结果（供后续评测使用）
+- `logs/reports/api-YYYYmmdd-HHMMSS.json`：HTTP 每次请求的逐本结果
 
 ## 评测
 
@@ -108,3 +137,4 @@ PYTHONPATH=. .venv/bin/python -m unittest discover -s tests -t .
 - 中文数字只解析常见写法（一～万），生僻写法不识别
 - 封面依赖系统中文字体，找不到时会退回默认字体（中文可能显示为方块）
 - 评测里的覆盖率是字符级召回，不校验顺序与段落结构；版式合规交给 EPUBCheck
+- HTTP 服务默认只监听 `127.0.0.1` 且没有鉴权，不要直接暴露到公网；`output/runs/` 会随请求累积，需定期清理

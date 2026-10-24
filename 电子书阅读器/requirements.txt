@@ -3,3 +3,6 @@ ebooklib==0.20
 Pillow==12.3.0
 PyYAML==6.0.3
 anthropic==2.2.0
+fastapi==0.162.0
+uvicorn==0.54.0
+python-multipart==0.0.32

@@ -17,6 +17,15 @@ runtime:
   output_dir: output                             # EPUB 输出目录
   default_input_dir: ""                          # 命令行不传目录时使用；留空则必须传参
 
+server:
+  host: 127.0.0.1                                # 监听地址；0.0.0.0 表示局域网可访问
+  port: 7881                                     # 访问端口（7880 已被简历服务占用）
+  route_prefix: /api                             # 业务接口前缀；/health 不带前缀
+  runs_dir: output/runs                          # 每次请求的上传与产物目录
+  max_upload_mb: 20                              # 单个 txt 上传上限
+  max_batch_files: 20                            # 批量接口一次最多几本
+  allowed_extensions: [".txt"]
+
 graph:
   recursion_limit: 25                            # LangGraph 单本书最大步数
 

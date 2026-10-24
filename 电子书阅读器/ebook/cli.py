@@ -11,7 +11,7 @@ from config.loader import ConfigError, load_config, project_path
 
 from .graph import build_graph
 from .ingest import IngestError, discover_files
-from .llm import LLMClient
+from .llm import make_llm
 from .logging_setup import setup_logging, write_report
 
 
@@ -28,19 +28,6 @@ def build_parser() -> argparse.ArgumentParser:
 def _resolve_input(raw: str) -> Path:
     path = Path(raw).expanduser()
     return path if path.is_absolute() else Path.cwd() / path
-
-
-def _make_llm(cfg, logger):
-    if not cfg.get("llm_fallback.enabled"):
-        return None
-    try:
-        return LLMClient(cfg, logger)
-    except ConfigError as exc:
-        logger.warning("模型未配置，跳过 LLM 兜底：%s", exc)
-        return None
-    except ImportError as exc:
-        logger.warning("anthropic SDK 不可用，跳过 LLM 兜底：%s", exc)
-        return None
 
 
 def main(argv: list[str] | None = None, cfg=None) -> int:
@@ -78,7 +65,7 @@ def main(argv: list[str] | None = None, cfg=None) -> int:
     output_dir = Path(args.output).expanduser() if args.output else project_path(
         cfg.get("runtime.output_dir")
     )
-    llm = None if args.no_llm else _make_llm(cfg, logger)
+    llm = None if args.no_llm else make_llm(cfg, logger)
     graph = build_graph(cfg, logger, llm)
 
     results = []
