@@ -4,8 +4,13 @@
 
 | 路径 | 内容 |
 |---|---|
+| `AGENTS.md` | **硬规则**：提交、测试、密钥、配置纪律、工具白名单校验；每次会话自动加载，所有任务适用 |
+| `.claude/skills/sopskill/` | **流程**：项目启动 SOP；根目录的 `sopskill` 是指向它的软链接 |
 | `resuem/` | 简历评估 Agent（LangGraph）：解析 → 四维评估 → 规则出等级，含 CLI、本地 Web 界面与评测脚本 |
-| `.claude/skills/sopskill/` | 项目启动 SOP skill；根目录的 `sopskill` 是指向它的软链接 |
+
+规则分两层，各管一件事：`AGENTS.md` 回答「什么事绝对不能做」（常驻上下文，无条件生效）；
+`sopskill` 回答「做 agent 项目按什么顺序、分几步问」（按需加载，附代码模板）。
+通用规则只在 `AGENTS.md` 里写一份，skill 用指针引用，避免两处漂移。
 
 ## 简历评估 Agent
 
