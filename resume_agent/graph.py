@@ -60,9 +60,17 @@ def _squash(text: str) -> str:
 
 
 def verify_evidence(evidence: list[str], resume_text: str) -> list[str]:
-    """只保留能在简历原文里逐字找到的引用，防止模型编造证据。"""
+    """只保留能在简历原文里逐字找到的引用，防止模型编造证据。
+
+    比对时忽略空白差异（PDF 抽取会在句中插入换行），但返回的引用会折成
+    单行，方便阅读和写进报告。
+    """
     haystack = _squash(resume_text)
-    return [quote for quote in evidence if quote.strip() and _squash(quote) in haystack]
+    kept: list[str] = []
+    for quote in evidence:
+        if quote.strip() and _squash(quote) in haystack:
+            kept.append(re.sub(r"\s+", " ", quote).strip())
+    return kept
 
 
 def build_graph(
