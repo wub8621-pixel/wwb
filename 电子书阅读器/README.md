@@ -48,6 +48,17 @@ curl -F "files=@一本.txt" -F "files=@另一本.txt" \
 
 每次请求的上传与产物落在 `output/runs/<run_id>/`，结果同时写入 `logs/reports/api-*.json`。
 
+## 页面
+
+```bash
+.venv/bin/python -m ebook.api    # 先起接口（127.0.0.1:7881）
+.venv/bin/python -m ebook.ui     # 再起页面（127.0.0.1:7882）
+```
+
+页面用 Gradio：可多选 txt、勾选是否允许 LLM 兜底、表格显示逐本章节数与告警、直接下载生成的 EPUB。
+页面所有转换都调用上面的 HTTP 接口，不另跑一套逻辑；保存位置由 `frontend.output_dir` 控制，
+接口地址、端口、超时、单次文件数都在 `frontend.*` 配置里。
+
 ## 流程图
 
 ```

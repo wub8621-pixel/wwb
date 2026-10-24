@@ -26,6 +26,14 @@ server:
   max_batch_files: 20                            # 批量接口一次最多几本
   allowed_extensions: [".txt"]
 
+frontend:
+  host: 127.0.0.1                                # 页面监听地址
+  port: 7882                                     # 页面端口（7880 简历、7881 API）
+  api_base: http://127.0.0.1:7881                # 后端 API 地址
+  request_timeout_s: 300                         # 批量转换时前端等待上限
+  max_files: 20                                  # 页面上一次最多选几本
+  output_dir: output/ui                          # 页面下载到的本地目录
+
 graph:
   recursion_limit: 25                            # LangGraph 单本书最大步数
 
