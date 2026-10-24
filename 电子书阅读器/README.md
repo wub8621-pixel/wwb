@@ -26,6 +26,8 @@ cd 电子书阅读器
 
 | 方法 | 路由 | 说明 |
 |---|---|---|
+| GET | `/` | 浏览器打开时跳转到 `/docs` 接口文档 |
+| GET | `/docs` | FastAPI 自带的交互式接口文档，可直接试调 |
 | GET | `/health` | 存活检查；返回模型名、LLM 是否可用、各路由 |
 | POST | `/api/convert` | 上传一个 txt，同步返回 EPUB 文件流 |
 | POST | `/api/convert/batch` | 上传多个 txt，返回逐本结果与下载链接 |

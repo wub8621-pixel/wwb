@@ -40,6 +40,12 @@ class ApiTest(unittest.TestCase):
             files={"file": (name, text.encode("utf-8"), "text/plain")},
         )
 
+    def test_root_redirects_to_docs(self):
+        response = self.client.get("/", follow_redirects=False)
+        self.assertEqual(response.status_code, 307)
+        self.assertEqual(response.headers["location"], "/docs")
+        self.assertEqual(self.client.get("/docs").status_code, 200)
+
     def test_health(self):
         response = self.client.get("/health")
         self.assertEqual(response.status_code, 200)

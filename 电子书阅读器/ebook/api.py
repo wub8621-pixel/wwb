@@ -1,6 +1,7 @@
 """FastAPI 服务：把 txt → EPUB 的能力暴露成 HTTP 接口。
 
 路由（前缀可在 server.route_prefix 配置）：
+    GET  /                               跳转到 /docs 接口文档
     GET  /health                         存活检查
     POST {prefix}/convert                上传一个 txt，同步返回 EPUB
     POST {prefix}/convert/batch          上传多个 txt，返回逐本结果
@@ -21,7 +22,7 @@ from urllib.parse import quote
 
 import uvicorn
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, RedirectResponse
 from starlette.concurrency import run_in_threadpool
 
 from config.loader import ConfigError, load_config, project_path
@@ -157,6 +158,11 @@ def create_app(cfg=None, llm="auto") -> FastAPI:
         if not any(item["ok"] for item in results):
             shutil.rmtree(run_dir, ignore_errors=True)
             raise HTTPException(status_code=422, detail=results)
+
+    @app.get("/", include_in_schema=False)
+    def index() -> RedirectResponse:
+        """浏览器直接打开根路径时，跳到自带的接口文档。"""
+        return RedirectResponse(url="/docs")
 
     @app.get("/health")
     def health() -> dict:
