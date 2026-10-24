@@ -1,4 +1,4 @@
-"""Gradio 页面逻辑：走真实 FastAPI（ASGI 内存传输），校验产物与错误分支。"""
+"""Gradio 页面逻辑：走真实 FastAPI（本地 uvicorn），校验自动转换、预览与护眼模式。"""
 
 import logging
 import tempfile
@@ -13,7 +13,7 @@ import uvicorn
 from config.loader import load_config
 
 from ebook.api import create_app
-from ebook.ui import convert_files
+from ebook.ui import _card_html, convert_and_preview, read_book, rerender
 
 SAMPLE = (
     "第一章 起点\n"
@@ -33,9 +33,10 @@ class UiTest(unittest.TestCase):
             "runtime": {"log_dir": str(root / "logs")},
             "server": {"runs_dir": str(root / "runs")},
             "frontend": {
-                "api_base": "http://testserver",
+                "api_base": "http://127.0.0.1:0",
                 "output_dir": str(root / "ui"),
                 "max_files": 2,
+                "preview_chars": 200,
             },
         })
         self.output_dir = root / "ui"
@@ -69,41 +70,69 @@ class UiTest(unittest.TestCase):
         self.thread.join(timeout=5)
         self.tmp.cleanup()
 
-    def _convert(self, paths, use_llm=True, client=None):
-        return convert_files(
+    def _convert(self, paths, use_llm=True, eye=False, client=None):
+        return convert_and_preview(
             paths,
             use_llm,
+            eye,
             self.cfg,
             self.logger,
             client=client or self.client,
             output_dir=self.output_dir,
         )
 
-    def test_converts_and_saves_epub(self):
-        status, files = self._convert([str(self.source)])
-        self.assertIn("完成 1/1", status)
+    def test_auto_convert_returns_book_preview(self):
+        status, state, card, cover, files = self._convert([str(self.source)])
+        self.assertIn("已生成 1/1", status)
+        self.assertIn("正文预览", card)
+        self.assertIn("第一章", card)
+        self.assertIn("测试小说", card)
+        self.assertTrue(Path(cover).is_file())
         self.assertEqual(len(files), 1)
-        saved = Path(files[0])
-        self.assertTrue(saved.is_file())
-        self.assertEqual(saved.suffix, ".epub")
-        self.assertTrue(saved.read_bytes().startswith(b"PK"))
+        self.assertTrue(Path(files[0]).read_bytes().startswith(b"PK"))
+        self.assertFalse(card.startswith('<div class="book-card eye"'))
+
+    def test_preview_metadata_and_chapters(self):
+        _, state, _, _, files = self._convert([str(self.source)])
+        book = state["book"]
+        self.assertEqual(book["title"], "测试小说")
+        self.assertEqual(len(book["chapters"]), 3)
+        self.assertIn("他推开门", book["preview"])
+        self.assertLessEqual(len(book["preview"]), 202)  # 200 字 + 省略号
+        again = read_book(Path(files[0]), 50)
+        self.assertEqual(again["title"], "测试小说")
+
+    def test_eye_mode_rerenders_without_converting(self):
+        _, state, card, _, _ = self._convert([str(self.source)])
+        eye_card = rerender(state, True)
+        self.assertIn("book-card eye", eye_card)
+        self.assertIn("第一章", eye_card)
+        self.assertNotIn("book-card eye", card)
+
+    def test_eye_mode_placeholder(self):
+        self.assertIn("护眼", _card_html(None, True) + "护眼")
+        self.assertEqual(rerender(None, True), _card_html(None, True))
 
     def test_batch_two_files(self):
         other = self.source.with_name("第二本.txt")
         other.write_text(SAMPLE, encoding="utf-8")
-        status, files = self._convert([str(self.source), str(other)])
-        self.assertIn("完成 2/2", status)
+        status, _, card, _, files = self._convert([str(self.source), str(other)])
+        self.assertIn("已生成 2/2", status)
+        self.assertIn("本次共生成 2 本", card)
         self.assertEqual(len(files), 2)
 
     def test_empty_selection(self):
-        status, files = self._convert([])
-        self.assertIn("请先选择", status)
+        status, state, card, cover, files = self._convert([])
+        self.assertIn("上传", status)
+        self.assertIsNone(state)
+        self.assertIn("上传 txt 后自动排版", card)
+        self.assertIsNone(cover)
         self.assertEqual(files, [])
 
     def test_rejects_non_txt(self):
         pdf = self.source.with_suffix(".pdf")
         pdf.write_bytes(b"pdf")
-        status, files = self._convert([str(pdf)])
+        status, _, _, _, files = self._convert([str(pdf)])
         self.assertIn("只支持 .txt", status)
         self.assertEqual(files, [])
 
@@ -113,7 +142,7 @@ class UiTest(unittest.TestCase):
             path = self.source.with_name(f"第{index}本.txt")
             path.write_text(SAMPLE, encoding="utf-8")
             paths.append(str(path))
-        status, files = self._convert(paths)
+        status, _, _, _, files = self._convert(paths)
         self.assertIn("一次最多 2 个", status)
         self.assertEqual(files, [])
 
@@ -123,18 +152,36 @@ class UiTest(unittest.TestCase):
 
         client = httpx.Client(transport=httpx.MockTransport(boom), base_url="http://testserver")
         try:
-            status, files = self._convert([str(self.source)], client=client)
+            status, state, _, _, files = self._convert([str(self.source)], client=client)
         finally:
             client.close()
         self.assertIn("调用后端失败", status)
+        self.assertIsNone(state)
         self.assertEqual(files, [])
 
     def test_backend_rejection_is_reported(self):
         short = self.source.with_name("太短.txt")
         short.write_text("太短", encoding="utf-8")
-        status, files = self._convert([str(short)])
+        status, state, _, _, files = self._convert([str(short)])
         self.assertIn("转换失败", status)
+        self.assertIsNone(state)
         self.assertEqual(files, [])
+
+    def test_card_escapes_html(self):
+        state = {
+            "book": {
+                "title": "<script>alert(1)</script>",
+                "author": "作者",
+                "description": "",
+                "chapters": ["第一章"],
+                "preview": "<b>正文</b>",
+                "cover": None,
+            },
+            "extra": "",
+        }
+        card = rerender(state, False)
+        self.assertNotIn("<script>", card)
+        self.assertIn("&lt;script&gt;", card)
 
 
 if __name__ == "__main__":

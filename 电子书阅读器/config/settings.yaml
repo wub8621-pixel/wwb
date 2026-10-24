@@ -33,6 +33,7 @@ frontend:
   request_timeout_s: 300                         # 批量转换时前端等待上限
   max_files: 20                                  # 页面上一次最多选几本
   output_dir: output/ui                          # 页面下载到的本地目录
+  preview_chars: 900                             # 正文预览字数
 
 graph:
   recursion_limit: 25                            # LangGraph 单本书最大步数

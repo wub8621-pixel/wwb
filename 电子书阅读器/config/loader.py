@@ -40,6 +40,7 @@ CHECKS: dict[str, tuple[type, float | None, float | None]] = {
     "frontend.port": (int, 1, 65535),
     "frontend.request_timeout_s": (int, 1, 3600),
     "frontend.max_files": (int, 1, 100),
+    "frontend.preview_chars": (int, 100, 20_000),
     "graph.recursion_limit": (int, 1, 200),
     "ingest.min_chars": (int, 0, 10_000_000),
     "chapters.min_chapters": (int, 0, 10_000),
