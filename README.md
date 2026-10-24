@@ -94,6 +94,15 @@ python3 -m venv .venv
 - **标注样本太少**：目前只有 2 份标注（1 优秀、1 一般），准确率数字只能证明链路通，
   说明不了泛化能力；且只标了等级、没标维度分，MAE 暂时算不出来。
 
+## 项目启动 skill
+
+`.claude/skills/ai-project-bootstrap/` 把这套流程固化成了一个 skill：
+
+问项目名称 → 判断新建还是更新 → 选框架 → 分批收集配置并落到 `config/settings.yaml`
+（代码只引用配置、密钥只存环境变量名）→ 交付「节点—职责—可调参数」对照表。
+
+说一句「用 ai-project-bootstrap 新建一个 XX 项目」即可触发。
+
 ## 测试
 
 ```bash
