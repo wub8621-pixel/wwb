@@ -1,0 +1,7 @@
+# MVP 运行时依赖
+pymupdf>=1.24
+python-docx>=1.1
+
+# 仅用于解析方案对照（探针 --engine unstructured）。
+# 当前环境下中文 PDF 返回空、DOCX 缺 NLTK 数据，MVP 不依赖它。
+# unstructured[pdf,docx]>=0.15
