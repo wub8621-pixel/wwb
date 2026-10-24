@@ -70,6 +70,16 @@ class ParseResumeTest(unittest.TestCase):
         )
         self.assertEqual([name for name, _ in result.attempts], ["unstructured"])
 
+    def test_repeated_page_header_is_stripped_not_rejected(self):
+        def engine(path):
+            pages = [["博学谷", *GOOD], ["博学谷", "第二页独有的内容" * 20]]
+            return [line for page in pages for line in page], pages
+
+        result = parse_resume(PATH, ("native",), {"native": engine})
+        self.assertEqual(result.engine, "native")
+        self.assertNotIn("博学谷", result.lines)
+        self.assertEqual(result.quality.header_footer, ("博学谷",))
+
     def test_raises_when_all_engines_fail(self):
         with self.assertRaises(ParseError) as ctx:
             parse_resume(

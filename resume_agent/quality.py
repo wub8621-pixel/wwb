@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 import re
+from collections import Counter
 from dataclasses import dataclass
 
 CJK_RE = re.compile(r"[\u4e00-\u9fff]")
@@ -84,19 +85,37 @@ def section_map(lines: list[str]) -> list[tuple[str, int]]:
 
 
 def header_footer_lines(pages: list[list[str]]) -> tuple[str, ...]:
-    """找出在每一页首尾重复出现的行——典型页眉/页脚。"""
+    """找出在**每一页**都出现过的短行——页眉、页脚、水印。
+
+    按“出现在多少页”计数，而不是按总出现次数：同一页里重复多次的行
+    不该被当成页眉。只出现一次的章节标题也不会被误判。
+    """
     if len(pages) < 2:
         return ()
-    edges: list[set[str]] = []
-    for page in pages:
-        lines = [line.strip() for line in page if line.strip()]
-        if lines:
-            edges.append(set(lines[:2] + lines[-2:]))
-    if len(edges) < 2:
+    page_sets = [{line.strip() for line in page if line.strip()} for page in pages]
+    page_sets = [lines for lines in page_sets if lines]
+    if len(page_sets) < 2:
         return ()
-    repeated = set.intersection(*edges)
+
+    counts: Counter[str] = Counter()
+    for lines in page_sets:
+        counts.update(lines)
+
+    repeated = [line for line, count in counts.items() if count == len(page_sets)]
     # 过长的重复行更可能是正文，不做判定
     return tuple(sorted(line for line in repeated if len(line) <= 40))
+
+
+def strip_repeated_edges(pages: list[list[str]]) -> list[list[str]]:
+    """去掉每页首尾重复出现的行（页眉、页脚、水印）。
+
+    重复页眉是正常现象，不该因此判定整份解析失败；正确做法是剥掉它，
+    再判断剩下的内容够不够用。
+    """
+    repeated = set(header_footer_lines(pages))
+    if not repeated:
+        return pages
+    return [[line for line in page if line.strip() not in repeated] for page in pages]
 
 
 def assess_quality(lines: list[str], pages: list[list[str]] | None = None) -> QualityReport:
@@ -116,8 +135,7 @@ def assess_quality(lines: list[str], pages: list[list[str]] | None = None) -> Qu
         problems.append(f"中文占比过低({stats['cjk_ratio']:.1%})")
     if blank_ratio > MAX_BLANK_RATIO:
         problems.append(f"空元素过多({blank_ratio:.0%})")
-    if edge_lines:
-        problems.append(f"页眉页脚重复({len(edge_lines)}行)")
+    # 页眉页脚只做记录，不判失败：调用方会先把重复行剥掉再评估
 
     return QualityReport(
         chars=int(stats["chars"]),

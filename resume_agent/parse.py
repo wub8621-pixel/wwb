@@ -12,7 +12,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable
 
-from .quality import QualityReport, assess_quality
+from .quality import QualityReport, assess_quality, strip_repeated_edges
 
 # 引擎顺序即优先级：主解析在前，备用在后
 ENGINE_ORDER = ("unstructured", "native")
@@ -99,12 +99,20 @@ def parse_resume(
     for engine in engines:
         try:
             lines, pages = available[engine](path)
+            original_pages = pages
         except Exception as exc:  # 兜底：任何解析器异常都算该引擎失败
             message = str(exc).splitlines()[0][:120] if str(exc).strip() else ""
             attempts.append((engine, f"{type(exc).__name__}: {message}".rstrip(": ")))
             continue
 
-        report = assess_quality(lines, pages)
+        # 先剥掉每页重复的页眉页脚，再用剥离后的内容做质量判定；
+        # 原始 pages 传给 assess_quality，让报告里仍能看到剥掉了什么。
+        cleaned_pages = strip_repeated_edges(pages)
+        if cleaned_pages != pages:
+            pages = cleaned_pages
+            lines = [line for page in pages for line in page]
+
+        report = assess_quality(lines, original_pages)
         if report.ok:
             return ParseResult(path, engine, lines, pages, report, tuple(attempts))
         attempts.append((engine, "; ".join(report.problems)))

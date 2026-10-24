@@ -7,6 +7,7 @@ from resume_agent.quality import (
     header_footer_lines,
     match_section,
     section_map,
+    strip_repeated_edges,
     text_stats,
 )
 
@@ -95,9 +96,33 @@ class AssessQualityTest(unittest.TestCase):
         lines = GOOD_LINES + [""] * 200
         self.assertIn("空元素过多", " ".join(assess_quality(lines).problems))
 
-    def test_repeated_header_fails(self):
-        pages = [["武彪 简历", *GOOD_LINES], ["武彪 简历", *GOOD_LINES]]
-        self.assertIn("页眉页脚", " ".join(assess_quality(GOOD_LINES, pages).problems))
+    def test_repeated_header_is_recorded_but_not_fatal(self):
+        # 重复页眉是正常现象，只记录不判失败，由 parse 层先剥掉
+        pages = [
+            ["武彪 简历", *GOOD_LINES],
+            ["武彪 简历", "第二页独有的内容" * 10],
+        ]
+        report = assess_quality(GOOD_LINES + ["第二页独有的内容" * 10], pages)
+        self.assertTrue(report.ok, report.problems)
+        self.assertEqual(report.header_footer, ("武彪 简历",))
+
+    def test_section_header_on_one_page_is_not_a_header(self):
+        pages = [["教育背景", "本科"], ["工作经历", "某公司"]]
+        self.assertEqual(header_footer_lines(pages), ())
+
+
+class StripRepeatedEdgesTest(unittest.TestCase):
+    def test_removes_repeated_edge_lines(self):
+        pages = [["博学谷", "第一页正文"], ["博学谷", "第二页正文"]]
+        self.assertEqual(strip_repeated_edges(pages), [["第一页正文"], ["第二页正文"]])
+
+    def test_keeps_pages_without_repetition(self):
+        pages = [["第一页"], ["第二页"]]
+        self.assertEqual(strip_repeated_edges(pages), pages)
+
+    def test_single_page_is_untouched(self):
+        pages = [["博学谷", "正文"]]
+        self.assertEqual(strip_repeated_edges(pages), pages)
 
 
 if __name__ == "__main__":
