@@ -128,6 +128,12 @@ class BuildReportTest(unittest.TestCase):
         report = build_report(rows, self.results, self.base, repeat=1)
         self.assertIn("1 对", report)
 
+    def test_unlabeled_dimension_shows_dash_not_nan(self):
+        rows = [LabelRow("a.pdf", "me", grade="优秀")]
+        report = build_report(rows, self.results, self.base, repeat=1)
+        self.assertIn("| 技术成熟度 | — | 0 |", report)
+        self.assertNotIn("nan", report)
+
     def test_empty_labels(self):
         report = build_report([], {}, self.base, repeat=1)
         self.assertIn("没有可评测的数据", report)

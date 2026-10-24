@@ -232,8 +232,8 @@ def build_report(rows: list[LabelRow], results: dict[str, dict], base: Path, rep
             for row, result in usable
             if getattr(row, key) is not None and key in result.get("dims", {})
         ]
-        mae = mean_absolute_error(pairs)
-        lines.append(f"| {DIM_LABELS[key]} | {mae:.1f} | {len(pairs)} |")
+        mae = f"{mean_absolute_error(pairs):.1f}" if pairs else "—"
+        lines.append(f"| {DIM_LABELS[key]} | {mae} | {len(pairs)} |")
 
     kappa, count = _inter_rater_kappa(rows)
     lines += ["", "## 标注者之间（人的一致性上限）", ""]
