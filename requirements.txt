@@ -5,3 +5,6 @@ unstructured[pdf,docx]>=0.15
 # 备用解析引擎
 pymupdf>=1.24
 python-docx>=1.1
+
+# 图编排
+langgraph>=1.0
