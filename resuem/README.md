@@ -90,6 +90,8 @@ cd resuem
 
 - **主解析引擎当前空转**：中文 PDF 下 `unstructured` 返回 0 元素，DOCX 缺 NLTK 数据，
   实际总是走 native 分支。
+- **主解析有 20 秒超时**：unstructured 会尝试下载 NLTK 数据，网络不通时可能卡几分钟，
+  超时即判该引擎失败并降级。阈值在 `resume_agent/parse.py` 的 `ENGINE_TIMEOUTS`。
 - **分数有 3～4 分波动**：所用 SDK 已不支持 `temperature`，同一份简历重复跑，
   总分实测在 70.8～74.8、88.0～89.2 之间浮动（等级未变）。用 `--repeat 3` 取中位数缓解。
 - **院校层次表未配置**：教育背景目前只按学历计分，配置后才会加分。

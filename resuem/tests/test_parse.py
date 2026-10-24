@@ -1,9 +1,10 @@
 """主备解析链路的测试：用注入的假引擎，不读真实文件。"""
 
+import time
 import unittest
 from pathlib import Path
 
-from resume_agent.parse import ParseError, parse_resume
+from resume_agent.parse import ParseError, call_with_timeout, parse_resume
 
 GOOD = ["教育背景", "燕京理工学院 本科"] + ["具备扎实的后端工程化能力"] * 20
 PATH = Path("fake.pdf")
@@ -23,6 +24,11 @@ def garbled_engine(path):
 
 def broken_engine(path):
     raise RuntimeError("未安装 unstructured")
+
+
+def slow_engine(path):
+    time.sleep(0.3)
+    return GOOD, [GOOD]
 
 
 class ParseResumeTest(unittest.TestCase):
@@ -89,6 +95,28 @@ class ParseResumeTest(unittest.TestCase):
             )
         self.assertIn("unstructured", str(ctx.exception))
         self.assertIn("native", str(ctx.exception))
+
+    def test_slow_engine_times_out_and_falls_back(self):
+        started = time.monotonic()
+        result = parse_resume(
+            PATH,
+            ("slow", "native"),
+            {"slow": slow_engine, "native": ok_engine},
+            timeouts={"slow": 0.05, "native": 5},
+        )
+        elapsed = time.monotonic() - started
+
+        self.assertEqual(result.engine, "native")
+        self.assertIn("超时", result.attempts[0][1])
+        # 不能被慢引擎拖住：0.3s 的引擎，50ms 就该放弃
+        self.assertLess(elapsed, 0.25)
+
+    def test_engine_exception_is_raised_in_caller(self):
+        def boom(path):
+            raise ZeroDivisionError("坏引擎")
+
+        with self.assertRaises(ZeroDivisionError):
+            call_with_timeout(boom, PATH, 1.0)
 
     def test_text_property_drops_blank_lines(self):
         lines = ["教育背景", "", "  ", "本科"] + ["具备扎实的后端工程化能力"] * 20

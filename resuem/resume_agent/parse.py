@@ -8,6 +8,7 @@ native = pymupdf 读 PDF、python-docx 读 DOCX，不依赖版面模型。
 
 from __future__ import annotations
 
+import threading
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable
@@ -16,6 +17,11 @@ from .quality import QualityReport, assess_quality, strip_repeated_edges
 
 # 引擎顺序即优先级：主解析在前，备用在后
 ENGINE_ORDER = ("unstructured", "native")
+
+# 单个引擎的时间上限。unstructured 会尝试下载 NLTK 数据，网络不通时能卡几分钟；
+# 超时即视为该引擎失败，直接降级，不能让整份简历一直挂着。
+ENGINE_TIMEOUTS: dict[str, float] = {"unstructured": 20.0, "native": 120.0}
+DEFAULT_TIMEOUT_S = 60.0
 
 Extractor = Callable[[Path], "tuple[list[str], list[list[str]]]"]
 
@@ -87,18 +93,46 @@ EXTRACTORS: dict[str, Extractor] = {
 }
 
 
+def call_with_timeout(func: Callable[[Path], "tuple[list[str], list[list[str]]]"], path: Path, timeout: float):
+    """在守护线程里执行抽取，超时抛 TimeoutError。
+
+    解析器可能阻塞在网络 IO 上（unstructured 下载 NLTK 数据），线程无法强杀，
+    所以这里只放弃等待——守护线程不会阻止进程退出，也不影响主流程降级。
+    """
+    result: dict[str, object] = {}
+
+    def run() -> None:
+        try:
+            result["value"] = func(path)
+        except BaseException as exc:  # 线程里的异常要带回主线程
+            result["error"] = exc
+
+    worker = threading.Thread(target=run, daemon=True)
+    worker.start()
+    worker.join(timeout)
+    if worker.is_alive():
+        raise TimeoutError(f"解析超时（>{timeout:g}s）")
+    if "error" in result:
+        raise result["error"]  # type: ignore[misc]
+    return result["value"]
+
+
 def parse_resume(
     path: Path,
     engines: tuple[str, ...] = ENGINE_ORDER,
     extractors: dict[str, Extractor] | None = None,
+    timeouts: dict[str, float] | None = None,
 ) -> ParseResult:
     """按优先级尝试各引擎，第一个通过质量闸门的胜出。"""
     available = extractors or EXTRACTORS
+    budgets = timeouts or ENGINE_TIMEOUTS
     attempts: list[tuple[str, str]] = []
 
     for engine in engines:
         try:
-            lines, pages = available[engine](path)
+            lines, pages = call_with_timeout(
+                available[engine], path, budgets.get(engine, DEFAULT_TIMEOUT_S)
+            )
             original_pages = pages
         except Exception as exc:  # 兜底：任何解析器异常都算该引擎失败
             message = str(exc).splitlines()[0][:120] if str(exc).strip() else ""
